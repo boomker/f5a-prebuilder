@@ -30,7 +30,7 @@
 	url = https://github.com/rime/marisa-trie
 [submodule "librime"]
 	path = librime
-	url = https://github.com/rime/librime
+	url = https://github.com/boomker/librime
 	fetchRecurseSubmodules = false
 [submodule "librime-lua"]
 	path = librime-lua
@@ -64,4 +64,4 @@
 	url = https://github.com/fcitx/fcitx5
 [submodule "librime-predict-leveldb"]
 	path = librime-predict-leveldb
-	url = https://github.com/fxliang/librime-predict-leveldb
+	url = https://github.com/boomker/librime-predict-leveldb

@@ -40,12 +40,9 @@ jobs:
         run: |
           # it appears to be a bug when building in containers: https://github.com/actions/checkout/issues/915
           git config --global --add safe.directory '*'
-          # fetch libime submodule kenlm since it's not in .gitmodules
-          git submodule update --init --recursive libime
-          pushd librime-predict-leveldb
-          git fetch -v origin master
-          git checkout origin/master
-          popd
+          # fetch nested submodules not listed in the top-level .gitmodules
+          git submodule sync --recursive
+          git submodule update --init --recursive libime librime-predict-leveldb
 
       - name: Setup Android NDK
         uses: android-actions/setup-android@v3
@@ -61,7 +58,6 @@ jobs:
           ./build-cabal -j everything
 
       - name: Pack prebuilt libraries
-        if: github.event_name == 'pull_request'
         run: |
           cd build
           mkdir prebuilt
@@ -72,39 +68,7 @@ jobs:
           tar --zstd -cf prebuilt.tar.zst prebuilt/
 
       - name: Upload prebuilt to artifact
-        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
+          name: prebuilt-${{ github.run_number }}
           path: build/prebuilt.tar.zst
-
-      - name: Fetch fxliang/prebuilt
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: actions/checkout@v3
-        with:
-          path: prebuilt
-          repository: fxliang/prebuilt
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Push to fxliang/prebuilt
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        working-directory: prebuilt
-        run: |
-          rm -r ./*
-          for TARGET in $(<../build/artifacts.txt)
-          do
-            cp -a "../build/$TARGET" ./
-          done
-          git remote set-url origin "https://${{ secrets.BOT_TOKEN }}@github.com/fxliang/prebuilt.git"
-          git config user.name "Fcitx5 Android Bot"
-          git config user.email "102923727+fcitx5-android-bot@users.noreply.github.com"
-          git add .
-          git diff-index --quiet HEAD || git commit -m "Auto update"
-          git push --set-upstream origin "HEAD:master" --follow-tags --atomic
-
-      - name: Trigger fcitx5-android mod2 CI
-        run: |
-          gh workflow run ci.yml --repo fxliang/fcitx5-android --ref mod2
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_TOKEN }}
-
