@@ -2,7 +2,8 @@ name: Update librime
 
 on:
   schedule:
-    - cron: '0 22 * * *' # daily at 22:00 UTC (06:00 Beijing Time)
+    - cron: '0 10 * * *' # daily at 10:00 UTC (18:00 Beijing Time)
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: write
@@ -34,12 +35,33 @@ jobs:
           OLDREV=$(git -C librime rev-parse HEAD)
           if [ "$NEWREV" = "$OLDREV" ]; then
             echo "librime is up-to-date"
-            exit 0
+          else
+            # Update the submodule to remote tip of its configured branch
+            git submodule update --remote --checkout librime
+            git add librime
+            BRANCH=${GITHUB_REF#refs/heads/}
+            echo "Committing update on branch $BRANCH"
+            git commit -m "chore: update librime to ${NEWREV:0:7}" || echo "Nothing to commit"
+            git push origin HEAD:$BRANCH
           fi
-          # Update the submodule to remote tip of its configured branch
-          git submodule update --remote --checkout librime
-          git add librime
-          BRANCH=${GITHUB_REF#refs/heads/}
-          echo "Committing update on branch $BRANCH"
-          git commit -m "chore: update librime to ${NEWREV:0:7} " || echo "Nothing to commit"
-          git push origin HEAD:$BRANCH
+
+      - name: Check and update librime-predict-leveldb
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          set -e
+          # Fetch latest master in the librime-predict-leveldb submodule
+          git -C librime-predict-leveldb fetch origin master
+          NEWREV=$(git -C librime-predict-leveldb rev-parse origin/master)
+          OLDREV=$(git -C librime-predict-leveldb rev-parse HEAD)
+          if [ "$NEWREV" = "$OLDREV" ]; then
+            echo "librime-predict-leveldb is up-to-date"
+          else
+            # Update the submodule to remote tip of its configured branch
+            git submodule update --remote --checkout librime-predict-leveldb
+            git add librime-predict-leveldb
+            BRANCH=${GITHUB_REF#refs/heads/}
+            echo "Committing update on branch $BRANCH"
+            git commit -m "chore: update librime-predict-leveldb to ${NEWREV:0:7}" || echo "Nothing to commit"
+            git push origin HEAD:$BRANCH
+          fi
