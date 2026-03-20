@@ -51,8 +51,8 @@ jobs:
         run: |
           set -e
           # Fetch latest master in the librime-predict-leveldb submodule
-          git -C librime-predict-leveldb fetch origin master
-          NEWREV=$(git -C librime-predict-leveldb rev-parse origin/master)
+          git -C librime-predict-leveldb fetch origin main
+          NEWREV=$(git -C librime-predict-leveldb rev-parse origin/main)
           OLDREV=$(git -C librime-predict-leveldb rev-parse HEAD)
           if [ "$NEWREV" = "$OLDREV" ]; then
             echo "librime-predict-leveldb is up-to-date"
