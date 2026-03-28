@@ -49,6 +49,10 @@ jobs:
         with:
           packages: "ndk;${{ env.NDK_VERSION }} cmake;${{ env.CMAKE_VERSION }}"
 
+      - name: Ensure boost shared libraries exist
+        run: |
+          pacman -S --noconfirm boost-libs
+
       - name: Build everything
         env:
           ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
