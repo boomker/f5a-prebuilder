@@ -1,10 +1,10 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index ac3e471..dec4ee6 100644
+index 4c2fcff..558cd0f 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -8,6 +8,8 @@ include_directories(${RIME_SOURCE_DIR}/deps/leveldb/include)
- find_package(SQLite3 REQUIRED)
-
+@@ -9,6 +9,8 @@ find_package(SQLite3 REQUIRED)
+ include_directories(${SQLite3_INCLUDE_DIRS})
+ 
  add_library(rime-predict-objs OBJECT ${predict_src})
 +target_compile_options(rime-predict-objs PRIVATE "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.")
 +target_compile_definitions(rime-predict-objs PRIVATE BOOST_ALL_NO_EMBEDDED_GDB_SCRIPTS)
