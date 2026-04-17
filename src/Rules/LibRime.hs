@@ -45,6 +45,7 @@ librimeRule = do
             cmd_ (Cwd librimePredictSrc) "git apply ../patches/librime-predict.patch"
             -- remove absolute path by __FILE__ macro
             cmd_ (Cwd src) "git checkout ."
+            cmd_ (Cwd src) "git submodule update --init deps/sqlite3"
             cmd_ (Cwd src) "git apply ../patches/librime.patch",
           cmakeFlags = \BuildEnv {..} ->
             [ "-DBUILD_SHARED_LIBS=OFF",
