@@ -1,18 +1,20 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 4c2fcff6..e3109437 100644
+index 4c2fcff6..d22a5afe 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -5,10 +5,20 @@ aux_source_directory(src predict_src)
+@@ -5,10 +5,22 @@ aux_source_directory(src predict_src)
  include_directories(deps/msgpack-c/include)
  include_directories(${RIME_SOURCE_DIR}/deps/leveldb/include)
  
 -find_package(SQLite3 REQUIRED)
 -include_directories(${SQLite3_INCLUDE_DIRS})
 +if(ANDROID)
-+  add_library(rime-predict-sqlite3 STATIC
++  add_library(rime-predict-sqlite3 OBJECT
 +    ${RIME_SOURCE_DIR}/deps/sqlite3/sqlite3.c)
 +  target_include_directories(rime-predict-sqlite3 PUBLIC
 +    ${RIME_SOURCE_DIR}/deps/sqlite3)
++  target_compile_options(rime-predict-sqlite3 PRIVATE
++    "-ffile-prefix-map=${RIME_SOURCE_DIR}/deps/sqlite3=.")
 +  include_directories(${RIME_SOURCE_DIR}/deps/sqlite3)
 +else()
 +  find_package(SQLite3 REQUIRED)
@@ -25,15 +27,16 @@ index 4c2fcff6..e3109437 100644
  if(BUILD_SHARED_LIBS)
    set_target_properties(rime-predict-objs
      PROPERTIES
-@@ -17,5 +27,10 @@ endif()
+@@ -16,6 +28,10 @@ if(BUILD_SHARED_LIBS)
+ endif()
  
  set(plugin_name rime-predict PARENT_SCOPE)
- set(plugin_objs $<TARGET_OBJECTS:rime-predict-objs> PARENT_SCOPE)
+-set(plugin_objs $<TARGET_OBJECTS:rime-predict-objs> PARENT_SCOPE)
 -set(plugin_deps ${rime_library} leveldb sqlite3 PARENT_SCOPE)
-+if(ANDROID)
-+  set(predict_sqlite_lib rime-predict-sqlite3)
-+else()
-+  set(predict_sqlite_lib sqlite3)
-+endif()
-+set(plugin_deps ${rime_library} leveldb ${predict_sqlite_lib} PARENT_SCOPE)
++set(plugin_objs
++  $<$<BOOL:${ANDROID}>:$<TARGET_OBJECTS:rime-predict-sqlite3>>
++  $<TARGET_OBJECTS:rime-predict-objs> PARENT_SCOPE)
++set(plugin_deps ${rime_library} leveldb
++  $<$<NOT:$<BOOL:${ANDROID}>>:sqlite3>
++  PARENT_SCOPE)
  set(plugin_modules "predict" PARENT_SCOPE)
