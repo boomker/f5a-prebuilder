@@ -1,0 +1,214 @@
+name: Publish Prebuilt
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: publish-prebuilt-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'master' &&
+      github.event.workflow_run.repository.full_name == 'boomker/f5a-prebuilder'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Download CI artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p downloaded-artifact
+          gh run download "${{ github.event.workflow_run.id }}" \
+            --repo "${{ github.repository }}" \
+            --name prebuilt \
+            --dir downloaded-artifact
+          test -d downloaded-artifact/prebuilt
+          test -f downloaded-artifact/artifacts.txt
+          test -f downloaded-artifact/toolchain-versions.json
+
+      - name: Determine artifacts to publish
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t built_artifacts < <(grep -v '^toolchain-versions.json$' downloaded-artifact/artifacts.txt)
+
+          add_artifact() {
+            local artifact="$1"
+            for existing in "${selected_artifacts[@]:-}"; do
+              if [ "$existing" = "$artifact" ]; then
+                return 0
+              fi
+            done
+            selected_artifacts+=("$artifact")
+          }
+
+          classify_path() {
+            local path="$1"
+            case "$path" in
+              librime|librime/*|librime-lua|librime-lua/*|librime-octagram|librime-octagram/*|librime-predict-leveldb|librime-predict-leveldb/*|patches/librime.patch|patches/librime-lua.patch|patches/librime-octagram.patch|patches/librime-predict.patch|src/Rules/LibRime.hs)
+                add_artifact librime
+                ;;
+              boost|boost/*|src/Rules/Boost.hs)
+                add_artifact boost
+                ;;
+              glog|glog/*|patches/glog.patch|src/Rules/GLog.hs)
+                add_artifact glog
+                ;;
+              leveldb|leveldb/*|src/Rules/LevelDB.hs)
+                add_artifact leveldb
+                ;;
+              marisa-trie|marisa-trie/*|patches/marisa-tire.patch|src/Rules/Marisa.hs)
+                add_artifact marisa
+                ;;
+              OpenCC|OpenCC/*|patches/opencc.patch|src/Rules/OpenCC.hs)
+                add_artifact opencc
+                ;;
+              Lua|Lua/*|patches/lua.patch|src/Rules/Lua.hs)
+                add_artifact lua
+                ;;
+              zstd|zstd/*|patches/zstd.patch|src/Rules/ZSTD.hs)
+                add_artifact zstd
+                ;;
+              yaml-cpp|yaml-cpp/*|src/Rules/YAMLCpp.hs)
+                add_artifact yaml-cpp
+                ;;
+              libuv|libuv/*|patches/libuv.patch|src/Rules/LibUV.hs)
+                add_artifact libuv
+                ;;
+              libintl-lite|libintl-lite/*|src/Rules/LibIntlLite.hs)
+                add_artifact libintl-lite
+                ;;
+              libhangul|libhangul/*|patches/libhangul.patch|src/Rules/LibHangul.hs)
+                add_artifact libhangul
+                ;;
+              libchewing|libchewing/*|patches/libchewing.patch|src/Rules/LibChewing.hs)
+                add_artifact libchewing
+                ;;
+              libime|libime/*|src/Rules/LibIME.hs)
+                add_artifact libime
+                ;;
+              libime-jyutping|libime-jyutping/*|src/Rules/LibIMEJyutping.hs)
+                add_artifact libime-jyutping
+                ;;
+              libthai|libthai/*|patches/libthai/*|src/Rules/LibThai.hs)
+                add_artifact libthai
+                ;;
+              libiconv|libiconv/*|patches/libiconv/*|src/Rules/LibIconv.hs)
+                add_artifact libiconv
+                ;;
+              anthy-unicode|anthy-unicode/*|src/Rules/AnthyData.hs)
+                add_artifact anthy-dict
+                ;;
+              fcitx5|fcitx5/*)
+                add_artifact spell-dict
+                add_artifact chinese-addons-data
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          selected_artifacts=()
+          sync_mode=incremental
+
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+            sync_mode=all
+          else
+            while IFS= read -r changed_path; do
+              [ -n "$changed_path" ] || continue
+              if ! classify_path "$changed_path"; then
+                sync_mode=all
+                break
+              fi
+            done < <(git diff --name-only HEAD^ HEAD)
+          fi
+
+          if [ "$sync_mode" = "all" ] || [ "${#selected_artifacts[@]}" -eq 0 ]; then
+            selected_artifacts=("${built_artifacts[@]}")
+            sync_mode=all
+          fi
+
+          {
+            printf 'sync_mode=%s\n' "$sync_mode"
+            printf 'artifacts<<EOF\n'
+            printf '%s\n' "${selected_artifacts[@]}"
+            printf 'EOF\n'
+          } >> "$GITHUB_OUTPUT"
+
+          printf 'Sync mode: %s\n' "$sync_mode"
+          printf 'Artifacts to publish:\n'
+          printf ' - %s\n' "${selected_artifacts[@]}"
+
+      - name: Checkout prebuilt repository
+        uses: actions/checkout@v4
+        with:
+          repository: boomker/f5a-prebuilt
+          # PAT with contents:write on boomker/f5a-prebuilt.
+          token: ${{ secrets.PREBUILT_REPO_TOKEN }}
+          path: prebuilt-repo
+          fetch-depth: 0
+
+      - name: Sync selected artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t selected_artifacts <<'EOF'
+          ${{ steps.plan.outputs.artifacts }}
+          EOF
+
+          for artifact in "${selected_artifacts[@]}"; do
+            [ -n "$artifact" ] || continue
+            src="downloaded-artifact/prebuilt/$artifact"
+            dst="prebuilt-repo/$artifact"
+            if [ ! -e "$src" ]; then
+              echo "Missing artifact payload: $src" >&2
+              exit 1
+            fi
+            rm -rf "$dst"
+            cp -a "$src" "$dst"
+          done
+
+          cp downloaded-artifact/toolchain-versions.json prebuilt-repo/toolchain-versions.json
+
+      - name: Commit and push
+        working-directory: prebuilt-repo
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SYNC_MODE: ${{ steps.plan.outputs.sync_mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --short)" ]; then
+            echo "No changes to publish."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git commit -m "chore: sync prebuilt from ${SOURCE_SHA:0:7}" \
+            -m "Source workflow run: https://github.com/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}" \
+            -m "Sync mode: ${SYNC_MODE}"
+          git push origin HEAD:master

@@ -61,18 +61,22 @@ jobs:
           cabal configure --disable-library-vanilla --enable-shared --enable-executable-dynamic --ghc-options=-dynamic
           ./build-cabal -j everything
 
-      - name: Pack prebuilt libraries
+      - name: Collect prebuilt libraries
         run: |
           cd build
-          mkdir prebuilt
+          rm -rf prebuilt
+          mkdir -p prebuilt
           for TARGET in $(<artifacts.txt)
           do
             cp -a "$TARGET" prebuilt/
           done
-          tar --zstd -cf prebuilt.tar.zst prebuilt/
 
       - name: Upload prebuilt to artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prebuilt-${{ github.run_number }}
-          path: build/prebuilt.tar.zst
+          name: prebuilt
+          compression-level: 0
+          path: |
+            build/prebuilt
+            build/artifacts.txt
+            build/toolchain-versions.json
