@@ -1,6 +1,7 @@
 name: Publish Prebuilt
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
