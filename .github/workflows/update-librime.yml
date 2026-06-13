@@ -6,15 +6,27 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
+      - name: Verify workflow trigger token
+        env:
+          PREBUILDER_PUSH_TOKEN: ${{ secrets.PREBUILDER_PUSH_TOKEN }}
+        run: |
+          if [ -z "$PREBUILDER_PUSH_TOKEN" ]; then
+            echo "::error::Missing PREBUILDER_PUSH_TOKEN. Configure a PAT or GitHub App token with contents:write on boomker/f5a-prebuilder so update commits trigger downstream workflows."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # Push with a non-GITHUB_TOKEN credential so the update commit's
+          # push event can trigger CI, which then triggers Publish Prebuilt.
+          token: ${{ secrets.PREBUILDER_PUSH_TOKEN }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: true
