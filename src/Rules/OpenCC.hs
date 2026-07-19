@@ -28,7 +28,7 @@ hostOpenCCRule = do
     let hostPrefix = outputDir </> "host"
     cmd_ Shell ("echo " <> openccSrc)
     cmd_ (Cwd openccSrc) "git checkout ."
-    cmd_ (Cwd openccSrc) "git apply ../patches/opencc-host.patch"
+    cmd_ (Cwd openccSrc) Shell "patch -p1 --forward --batch < ../patches/opencc-host.patch"
     cmd_
       "cmake"
       "-B" buildDir
@@ -50,7 +50,7 @@ openccRule = do
           -- use prebuilt marisa
           preBuild = BuildAction $ \_ src -> do
             cmd_ (Cwd src) "git checkout ."
-            cmd_ (Cwd src) "git apply ../patches/opencc.patch",
+            cmd_ (Cwd src) Shell "patch -p1 --forward --batch < ../patches/opencc.patch",
           cmakeFlags = \BuildEnv {..} ->
             [ "-DSHARE_INSTALL_PREFIX=share",
               "-DINCLUDE_INSTALL_DIR=include",

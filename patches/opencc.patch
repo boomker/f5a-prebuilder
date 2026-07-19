@@ -2,20 +2,9 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index c2e9dc70..fb9077d0 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -79,10 +79,6 @@ endif()
- 
- ######## Directory
- 
--set(LIB_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}" CACHE PATH "")
--if(CMAKE_INSTALL_LIBDIR MATCHES "lib64$")
--  set(LIB_SUFFIX 64)
--endif()
- 
- set (DIR_PREFIX ${CMAKE_INSTALL_PREFIX})
- set (DIR_INCLUDE ${DIR_PREFIX}/include)
-@@ -215,19 +211,13 @@ if(NOT USE_SYSTEM_MARISA)
+@@ -329,12 +329,7 @@
    message(STATUS "Use bundled marisa library.")
-   add_subdirectory(deps/marisa-0.2.6)
+   add_subdirectory(deps/marisa-0.3.1)
  else()
 -  find_library(LIBMARISA NAMES marisa)
 -  if (LIBMARISA)
@@ -27,27 +16,28 @@ index c2e9dc70..fb9077d0 100644
  endif()
  
  ######## Subdirectories
- 
- add_subdirectory(src)
- add_subdirectory(doc)
+@@ -345,7 +340,6 @@
+ elseif(BUILD_DOCUMENTATION)
+   message(FATAL_ERROR "BUILD_DOCUMENTATION requires the doc source directory.")
+ endif()
 -add_subdirectory(data)
- add_subdirectory(test)
- 
- ######## Testing
+ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/plugins/CMakeLists.txt")
+   add_subdirectory(plugins)
+ elseif(BUILD_OPENCC_JIEBA_PLUGIN)
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
 index 227e6c65..9aed48d1 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -116,7 +116,7 @@ add_library(libopencc ${LIBOPENCC_SOURCES} ${LIBOPENCC_HEADERS})
- add_library(OpenCC::OpenCC ALIAS libopencc)
- set_target_properties(libopencc PROPERTIES POSITION_INDEPENDENT_CODE ON)
- source_group(libopencc FILES ${LIBOPENCC_SOURCES} ${LIBOPENCC_HEADERS})
+@@ -146,7 +146,7 @@
+   ${LIBOPENCC_HEADERS}
+   ${LIBOPENCC_PRIVATE_HEADERS}
+ )
 -target_link_libraries(libopencc marisa)
 +target_link_libraries(libopencc Marisa::marisa)
- target_include_directories(libopencc PUBLIC
-     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-     $<INSTALL_INTERFACE:${DIR_INCLUDE}/opencc>
-@@ -206,4 +206,3 @@ endif()
+ if (NOT BUILD_SHARED_LIBS)
+   target_compile_definitions(libopencc PUBLIC Opencc_BUILT_AS_STATIC)
+ endif()
+@@ -255,4 +255,3 @@
  
  # Subdir
  
