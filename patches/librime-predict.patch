@@ -5,7 +5,7 @@ index 4c2fcff6..d22a5afe 100644
 @@ -5,10 +5,22 @@ aux_source_directory(src predict_src)
  include_directories(deps/msgpack-c/include)
  include_directories(${RIME_SOURCE_DIR}/deps/leveldb/include)
- 
+
 -find_package(SQLite3 REQUIRED)
 -include_directories(${SQLite3_INCLUDE_DIRS})
 +if(ANDROID)
@@ -20,7 +20,7 @@ index 4c2fcff6..d22a5afe 100644
 +  find_package(SQLite3 REQUIRED)
 +  include_directories(${SQLite3_INCLUDE_DIRS})
 +endif()
- 
+
  add_library(rime-predict-objs OBJECT ${predict_src})
 +target_compile_options(rime-predict-objs PRIVATE "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.")
 +target_compile_definitions(rime-predict-objs PRIVATE BOOST_ALL_NO_EMBEDDED_GDB_SCRIPTS)
@@ -29,7 +29,7 @@ index 4c2fcff6..d22a5afe 100644
      PROPERTIES
 @@ -16,6 +28,10 @@ if(BUILD_SHARED_LIBS)
  endif()
- 
+
  set(plugin_name rime-predict PARENT_SCOPE)
 -set(plugin_objs $<TARGET_OBJECTS:rime-predict-objs> PARENT_SCOPE)
 -set(plugin_deps ${rime_library} leveldb sqlite3 PARENT_SCOPE)
@@ -40,3 +40,18 @@ index 4c2fcff6..d22a5afe 100644
 +  $<$<NOT:$<BOOL:${ANDROID}>>:sqlite3>
 +  PARENT_SCOPE)
  set(plugin_modules "predict" PARENT_SCOPE)
+diff --git a/src/predictor.cc b/src/predictor.cc
+index 59b95e0..a3f2367 100644
+--- a/src/predictor.cc
++++ b/src/predictor.cc
+@@ -126,7 +126,9 @@ void Predictor::OnSelect(Context* ctx) {
+ }
+
+ void Predictor::OnDelete(Context* ctx) {
+-  if (!predict_engine_ || !ctx || !ctx->get_option("prediction")) {
++  if (!predict_engine_ || !ctx || !ctx->get_option("prediction") ||
++      ctx->composition().empty() ||
++      !ctx->composition().back().HasTag("prediction")) {
+     return;
+   }
+   awaiting_trigger_after_limit_ = false;
