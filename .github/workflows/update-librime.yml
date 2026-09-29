@@ -50,6 +50,7 @@ jobs:
           else
             # Update the submodule to remote tip of its configured branch
             git submodule update --remote --checkout librime
+            git -C librime apply --check ../patches/librime.patch
             git add librime
             BRANCH=${GITHUB_REF#refs/heads/}
             echo "Committing update on branch $BRANCH"
@@ -71,6 +72,7 @@ jobs:
           else
             # Update the submodule to remote tip of its configured branch
             git submodule update --remote --checkout librime-predict-leveldb
+            git -C librime-predict-leveldb apply --check ../patches/librime-predict.patch
             git add librime-predict-leveldb
             BRANCH=${GITHUB_REF#refs/heads/}
             echo "Committing update on branch $BRANCH"

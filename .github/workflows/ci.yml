@@ -52,6 +52,13 @@ jobs:
           # fetch libchewing-data submodule
           git submodule update --init --recursive libchewing
 
+      - name: Check librime patches
+        run: |
+          git -C librime apply --check ../patches/librime.patch
+          git -C librime-lua apply --check ../patches/librime-lua.patch
+          git -C librime-octagram apply --check ../patches/librime-octagram.patch
+          git -C librime-predict-leveldb apply --check ../patches/librime-predict.patch
+
       - name: Setup Android NDK
         uses: android-actions/setup-android@v4
         with:

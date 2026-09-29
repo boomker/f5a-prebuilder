@@ -40,18 +40,3 @@ index 4c2fcff6..d22a5afe 100644
 +  $<$<NOT:$<BOOL:${ANDROID}>>:sqlite3>
 +  PARENT_SCOPE)
  set(plugin_modules "predict" PARENT_SCOPE)
-diff --git a/src/predictor.cc b/src/predictor.cc
-index 59b95e0..a3f2367 100644
---- a/src/predictor.cc
-+++ b/src/predictor.cc
-@@ -126,7 +126,9 @@ void Predictor::OnSelect(Context* ctx) {
- }
-
- void Predictor::OnDelete(Context* ctx) {
--  if (!predict_engine_ || !ctx || !ctx->get_option("prediction")) {
-+  if (!predict_engine_ || !ctx || !ctx->get_option("prediction") ||
-+      ctx->composition().empty() ||
-+      !ctx->composition().back().HasTag("prediction")) {
-     return;
-   }
-   awaiting_trigger_after_limit_ = false;
