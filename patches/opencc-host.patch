@@ -1,8 +1,7 @@
 diff --git a/data/CMakeLists.txt b/data/CMakeLists.txt
-index 3b7057aa..f3eb802a 100644
 --- a/data/CMakeLists.txt
 +++ b/data/CMakeLists.txt
-@@ -130,7 +130,9 @@ foreach(DICT ${DICTS})
+@@ -210,7 +210,9 @@
      FILES
        ${DICT_GENERATED_DIR}/${DICT}.ocd2
      DESTINATION
@@ -11,14 +10,16 @@ index 3b7057aa..f3eb802a 100644
 +    COMPONENT
 +      data
    )
+   endif()
  
-   set_directory_properties(
-@@ -161,5 +163,7 @@ install(
-   FILES
-     ${CONFIG_FILES}
-   DESTINATION
--    ${DIR_SHARE_OPENCC}
-+    data
-+  COMPONENT
-+    data
- )
+@@ -335,7 +337,9 @@
+     FILES
+       ${CONFIG_FILES}
+     DESTINATION
+-      ${DIR_SHARE_OPENCC}
++      data
++    COMPONENT
++      data
+   )
+   endif()
+ endif()
