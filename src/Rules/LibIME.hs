@@ -83,7 +83,17 @@ lmRule = do
   outputDir </> "sc.lm" %> \out -> do
     let src = outputDir </> "lm_sc.arpa"
     need ["libime-tools", src]
-    execute "libime_slm_build_binary" "-s -a 22 -q 4 trie" src out
+    -- 8-bit quantization, same as the jyutping model. Upstream libime
+    -- lowered this to 4 bits in fcitx/libime e090fb3 ("Update model and
+    -- adjust quantize parameter"), which shrinks the model from 38.7 MiB
+    -- to 33.1 MiB but costs a mean |dlog10 p| of 0.051 (p90 0.116) versus
+    -- the unquantized trie; 8 bits brings that down to 0.0037 (p90 0.007).
+    -- The prediction trie reacts harder because libime_prediction filters
+    -- entries with a hard score threshold: 4-bit rounding silently dropped
+    -- 7.3% of them (100029 vs 107289 entries). The model must stay a
+    -- quantized array trie (-a 22 trie), since libime loads it with
+    -- lm::ngram::QuantArrayTrieModel.
+    execute "libime_slm_build_binary" "-s -a 22 -q 8 trie" src out
   outputDir </> "sc.lm.predict" %> \out -> do
     let src1 = outputDir </> "sc.lm"
         src2 = outputDir </> "lm_sc.arpa"
