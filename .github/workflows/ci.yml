@@ -78,6 +78,7 @@ jobs:
           ./build-cabal -j everything
 
       - name: Collect prebuilt libraries
+        if: github.event_name == 'pull_request'
         run: |
           cd build
           rm -rf prebuilt
@@ -88,6 +89,7 @@ jobs:
           done
 
       - name: Upload prebuilt to artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: prebuilt
@@ -96,3 +98,26 @@ jobs:
             build/prebuilt
             build/artifacts.txt
             build/toolchain-versions.json
+
+      - name: Fetch boomker/f5a-prebuilt
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/checkout@v6
+        with:
+          path: prebuilt
+          repository: boomker/f5a-prebuilt
+          token: ${{ secrets.PREBUILT_REPO_TOKEN }}
+
+      - name: Push to boomker/f5a-prebuilt
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        working-directory: prebuilt
+        run: |
+          rm -r ./*
+          for TARGET in $(<../build/artifacts.txt)
+          do
+            cp -a "../build/$TARGET" ./
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Auto update"
+          git push --set-upstream origin "HEAD:master" --follow-tags --atomic
