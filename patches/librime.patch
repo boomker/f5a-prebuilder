@@ -16,7 +16,7 @@ index 4a54f64c..2efe0c93 100644
 --- a/src/rime/engine.cc
 +++ b/src/rime/engine.cc
 @@ -52,7 +52,6 @@ class ConcreteEngine : public Engine {
-   vector<of<Filter>> filters_;
+   vector<ComponentEntry<Filter>> filters_;
    vector<of<Formatter>> formatters_;
    vector<of<Processor>> post_processors_;
 -  an<Switcher> switcher_;
