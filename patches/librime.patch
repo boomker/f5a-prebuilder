@@ -1,21 +1,21 @@
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 8faa61f8..671622ce 100644
+index d7e4c8a0..2c266162 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -166,6 +166,8 @@ if(BUILD_SHARED_LIBS)
+@@ -156,6 +156,8 @@ if(BUILD_SHARED_LIBS)
  else()
    add_library(rime-static STATIC ${rime_src})
-   target_link_libraries(rime-static ${rime_deps})
+   target_link_libraries(rime-static PUBLIC ${rime_deps})
 +  target_compile_options(rime-static PRIVATE "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.")
 +  target_compile_definitions(rime-static PRIVATE BOOST_DISABLE_CURRENT_LOCATION BOOST_ALL_NO_EMBEDDED_GDB_SCRIPTS)
    set_target_properties(rime-static PROPERTIES
      OUTPUT_NAME "rime" PREFIX "lib"
      ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 diff --git a/src/rime/engine.cc b/src/rime/engine.cc
-index 4a54f64c..2efe0c93 100644
+index c73bb2f8..eadac29e 100644
 --- a/src/rime/engine.cc
 +++ b/src/rime/engine.cc
-@@ -52,7 +52,6 @@ class ConcreteEngine : public Engine {
+@@ -122,7 +122,6 @@ class ConcreteEngine : public Engine {
    vector<ComponentEntry<Filter>> filters_;
    vector<of<Formatter>> formatters_;
    vector<of<Processor>> post_processors_;
@@ -24,7 +24,7 @@ index 4a54f64c..2efe0c93 100644
  
  // implementations
 diff --git a/src/rime/engine.h b/src/rime/engine.h
-index 6b51a68e..c5b8f7e4 100644
+index 80ff2703..4e903288 100644
 --- a/src/rime/engine.h
 +++ b/src/rime/engine.h
 @@ -16,6 +16,7 @@ namespace rime {
@@ -35,7 +35,7 @@ index 6b51a68e..c5b8f7e4 100644
  
  class Engine : public Messenger {
   public:
-@@ -35,6 +36,7 @@ class Engine : public Messenger {
+@@ -36,6 +37,7 @@ class Engine : public Messenger {
    void set_active_engine(Engine* engine = nullptr) { active_engine_ = engine; }
  
    RIME_DLL static Engine* Create();
@@ -44,10 +44,10 @@ index 6b51a68e..c5b8f7e4 100644
   protected:
    Engine();
 diff --git a/src/rime/lever/deployment_tasks.cc b/src/rime/lever/deployment_tasks.cc
-index 6e6ff895..fe111d55 100644
+index 344c2b3c..90971c77 100644
 --- a/src/rime/lever/deployment_tasks.cc
 +++ b/src/rime/lever/deployment_tasks.cc
-@@ -429,17 +429,6 @@ static bool ConfigNeedsUpdate(Config* config) {
+@@ -474,17 +474,6 @@ static bool ConfigNeedsUpdate(Config* config) {
  }
  
  bool ConfigFileUpdate::Run(Deployer* deployer) {
@@ -66,29 +66,26 @@ index 6e6ff895..fe111d55 100644
    the<Config> config(Config::Require("config")->Create(file_name_));
    if (ConfigNeedsUpdate(config.get())) {
 diff --git a/src/rime/service.h b/src/rime/service.h
-index a69ae741..9b3d4b16 100644
+index a69ae741..e3032958 100644
 --- a/src/rime/service.h
 +++ b/src/rime/service.h
-@@ -44,11 +44,11 @@ class Session {
-   Schema* schema() const;
+@@ -45,10 +45,11 @@ class Session {
    time_t last_active_time() const { return last_active_time_; }
    const string& commit_text() const { return commit_text_; }
--
-- private:
--  void OnCommit(const string& commit_text);
--
-   the<Engine> engine_;
+ 
++  the<Engine> engine_;
 +
-+ private:
-+  void OnCommit(const string& commit_text);
-+
+  private:
+   void OnCommit(const string& commit_text);
+ 
+-  the<Engine> engine_;
    time_t last_active_time_ = 0;
    string commit_text_;
  };
-diff --git a/src/rime_api_impl.h b/src/rime_api_impl.h
-index 30f4514f..c17d4794 100644
---- a/src/rime_api_impl.h
-+++ b/src/rime_api_impl.h
+diff --git a/src/rime_api_impl.cc b/src/rime_api_impl.cc
+index 2a4aed51..35b5856c 100644
+--- a/src/rime_api_impl.cc
++++ b/src/rime_api_impl.cc
 @@ -17,6 +17,8 @@
  #include <rime/setup.h>
  #include <rime/signature.h>
@@ -98,7 +95,7 @@ index 30f4514f..c17d4794 100644
  
  using namespace rime;
  
-@@ -430,6 +432,13 @@ RIME_DEPRECATED void RimeSetOption(RimeSessionId session_id,
+@@ -431,6 +433,13 @@ RIME_DEPRECATED void RimeSetOption(RimeSessionId session_id,
    if (!ctx)
      return;
    ctx->set_option(option, !!value);
