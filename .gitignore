@@ -1,4 +1,5 @@
 build
+logs/
 dist-newstyle
 report.html
 cabal.project.local
