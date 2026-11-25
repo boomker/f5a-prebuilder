@@ -38,19 +38,25 @@ jobs:
       - name: Fetch source code
         uses: actions/checkout@v6
         with:
-          # this only sync submodules specified in .gitmodules,
-          # because we don't want recursive submodules in glog, librime, etc.
-          submodules: true
+          # Do NOT use submodules:true here: actions/checkout recurses into
+          # librime/deps/sqlite3 which is a gitlink but has no .gitmodules
+          # entry (upstream bug), causing "No url found for submodule path".
+          # We init submodules manually in the next step instead.
+          submodules: false
 
       - name: Fetch submodules
         run: |
           # it appears to be a bug when building in containers: https://github.com/actions/checkout/issues/915
           git config --global --add safe.directory '*'
+          # init top-level submodules (non-recursive first)
+          git submodule update --init
+          # workaround: librime/deps/sqlite3 is a gitlink without a .gitmodules
+          # entry; add it so recursive init can resolve its URL
+          git -C librime config -f .gitmodules submodule."deps/sqlite3".path deps/sqlite3
+          git -C librime config -f .gitmodules submodule."deps/sqlite3".url https://github.com/azadkuh/sqlite-amalgamation.git
           # fetch nested submodules not listed in the top-level .gitmodules
           git submodule sync --recursive
-          git submodule update --init --recursive libime librime-predict-leveldb
-          # fetch libchewing-data submodule
-          git submodule update --init --recursive libchewing
+          git submodule update --init --recursive
 
       - name: Check librime patches
         run: |
