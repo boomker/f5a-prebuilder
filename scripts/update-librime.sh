@@ -7,7 +7,10 @@
 #   scripts/update-librime.sh [--fix-patch] [--push] [--dry-run]
 #
 #   --fix-patch  Try to adapt patches/librime.patch automatically with
-#                `git apply --3way` and regenerate the patch file.
+#                `git apply --3way` and regenerate the patch file.  Conflicting
+#                hunks that only add lines are re-anchored on the new upstream
+#                side, so upstream refactors of the surrounding code do not
+#                force a manual patch edit.
 #   --push       Push the resulting commit to origin.
 #   --dry-run    Only report whether an update is available; change nothing.
 #
@@ -120,6 +123,149 @@ git -C "$SUBMODULE" checkout -q --detach "$NEW_SHA"
 
 PATCH_CHANGED=0
 
+# `git apply --3way` labels the checked-out revision ("ours") upstream and the
+# patched result ("theirs") the patch.  Upstream routinely refactors the lines
+# around the places we touch, which turns additive hunks into conflicts.  For
+# those we keep the upstream side and re-attach only the added lines, anchored
+# on the closest surviving context line.  Hunks that remove or rewrite upstream
+# lines are never guessed at: they abort the script instead.
+
+# Print the body of the patch section for a file relative to the submodule.
+patch_section() {
+  git show "HEAD:$PATCH" | awk -v f="$1" '
+    /^diff --git / { inside = ($3 == "a/" f); next }
+    inside && !/^(index |--- |\+\+\+ )/ { print }
+  '
+}
+
+# Insert the added lines of a purely additive patch section into an existing
+# file, anchoring each block after the last context line that precedes it.
+resolve_additive_hunks() {
+  local file=$1 section=$2
+  local target="$SUBMODULE/$file" plan merged
+
+  plan=$(mktemp)
+  merged=$(mktemp)
+
+  # one plan line per block: <anchor text><US><added line><US><added line>...
+  if ! printf '%s\n' "$section" | awk -v plan="$plan" '
+      function emit() {
+        if (fail || inblock == 0) return
+        if (anchor == "") { fail = 1; return }
+        printf "%s", anchor >> plan
+        n = split(block, parts, "\001")
+        for (i = 1; i <= n; i++) printf "\001%s", parts[i] >> plan
+        printf "\n" >> plan
+        block = ""
+        inblock = 0
+      }
+      BEGIN { fail = 0; inblock = 0; block = "" }
+      /^@@/ { emit(); anchor = ""; inblock = 0; next }
+      /^\+/ {
+        block = block (inblock ? "\001" : "") substr($0, 2)
+        inblock = 1
+        next
+      }
+      /^ / { emit(); anchor = substr($0, 2); next }
+      /^-/ { fail = 1; exit 1 }
+      END { emit(); if (fail) exit 1 }
+    '; then
+    rm -f "$plan" "$merged"
+    return 1
+  fi
+
+  if ! awk -v plan="$plan" '
+      BEGIN {
+        np = 0
+        while ((getline line < plan) > 0) {
+          np++
+          m = split(line, parts, "\001")
+          anchors[np] = parts[1]
+          trimmed[np] = parts[1]
+          sub(/^[ \t]+/, "", trimmed[np])
+          cnt[np] = m - 1
+          for (i = 2; i <= m; i++) body[np, i - 1] = parts[i]
+        }
+        close(plan)
+        nlines = 0
+      }
+      { lines[++nlines] = $0 }
+      END {
+        for (i = 1; i <= np; i++) {
+          if (anchors[i] == "") exit 1
+          at[i] = 0
+          hits = 0
+          for (k = 1; k <= nlines; k++) {
+            if (index(lines[k], anchors[i]) == 1 ||
+                index(lines[k], trimmed[i]) == 1) {
+              at[i] = k
+              hits++
+            }
+          }
+          if (hits == 0) {
+            # Upstream may extend the anchor (extra arguments, flags, ...), so
+            # fall back to the first word, which carries the target/identifier.
+            tok = trimmed[i]
+            sub(/[ \t].*/, "", tok)
+            for (k = 1; k <= nlines; k++) {
+              t = lines[k]
+              sub(/^[ \t]+/, "", t)
+              if (index(t, tok) == 1) {
+                at[i] = k
+                hits++
+              }
+            }
+          }
+          if (hits != 1) exit 1
+        }
+        for (k = 1; k <= nlines; k++) {
+          print lines[k]
+          for (i = 1; i <= np; i++)
+            if (at[i] == k)
+              for (j = 1; j <= cnt[i]; j++) print body[i, j]
+        }
+      }
+    ' "$target" >"$merged"; then
+    rm -f "$plan" "$merged"
+    return 1
+  fi
+
+  mv "$merged" "$target"
+  rm -f "$plan"
+}
+
+# Resolve the conflicts `git apply --3way` left behind, or fail.
+resolve_conflicts() {
+  local conflicted file section
+  conflicted=$(git -C "$SUBMODULE" diff --name-only --diff-filter=U)
+  [ -n "$conflicted" ] || return 1
+
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    section=$(patch_section "$file")
+    [ -n "$section" ] || { warn "no patch section for $file"; return 1; }
+
+    if ! printf '%s\n' "$section" | awk '/^-/ { exit 1 }'; then
+      warn "$file conflicts on lines the patch rewrites; refusing to guess"
+      return 1
+    fi
+
+    git -C "$SUBMODULE" checkout --ours -- "$file" ||
+      { warn "cannot restore the upstream version of $file"; return 1; }
+    if ! resolve_additive_hunks "$file" "$section"; then
+      warn "cannot re-anchor the added lines of $file"
+      return 1
+    fi
+    if awk '/^(<<<<<<<|=======|>>>>>>>)/ { found = 1 } END { exit !found }' \
+      "$SUBMODULE/$file"; then
+      warn "$file still contains conflict markers"
+      return 1
+    fi
+    git -C "$SUBMODULE" add -- "$file"
+    info "resolved $file: kept upstream and re-applied the added lines"
+  done <<<"$conflicted"
+}
+
 if git -C "$SUBMODULE" apply --check "../$PATCH" 2>/dev/null; then
   info "$PATCH applies cleanly"
 else
@@ -129,8 +275,13 @@ else
   fi
 
   info "$PATCH no longer applies; attempting a 3-way merge"
-  if ! git -C "$SUBMODULE" apply --3way "../$PATCH"; then
-    die "3-way merge failed; resolve the conflicts manually and regenerate $PATCH"
+  set +e
+  git -C "$SUBMODULE" apply --3way "../$PATCH"
+  merge_status=$?
+  set -e
+  if [ "$merge_status" -ne 0 ]; then
+    resolve_conflicts ||
+      die "3-way merge failed; resolve the conflicts manually and regenerate $PATCH"
   fi
 
   git -C "$SUBMODULE" diff HEAD >"$PATCH"
